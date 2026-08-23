@@ -22,5 +22,6 @@ public class questao2 {
             System.out.println(Alterar(frase,gerador)); // chama a funçaozinha e printa a resposta 
             frase = sc.nextLine(); // le a proxima frase ate achar o fim 
         }
+        sc.close();
     }
 }
