@@ -216,7 +216,7 @@ public class questao1 {
     }
     public static void main(String[] args){
         LeitorCsv leitor = new LeitorCsv(); // objeto leitor para ler o csv
-        Veiculo[] veiculos = leitor.lerCsv("D:\\PUC\\AEDS II\\tps\\TP-2\\aeds2\\tps\\entrada e saida\\tp2\\veiculos.csv"); // le o csv e cria um array de veiculo
+        Veiculo[] veiculos = leitor.lerCsv("/tmp/veiculos.csv"); // le o csv e cria um array de veiculo
         Scanner sc = new Scanner(System.in);
         int id = sc.nextInt(); // le o id do carro 
         while(id != -1){ 
