@@ -99,8 +99,8 @@ void formatVeiculo(Veiculo v, char* buffer){
     posicao += sprintf(combustiveis + posicao, "%s", v.combustivel[i]); // sem ; nem , aqui
     if(i < v.qtdCombustivel - 1){
         posicao += sprintf(combustiveis + posicao, ","); // vírgula só entre eles
-        }
     }
+}
     char dataRegistro[12];
     formatData(v.dataRegistro, dataRegistro); // formata a data de registro do veículo para uma string
     sprintf(buffer, "[%d ## %s ## %s ## %d ## %s ## [%s] ## %d ## %.1f ## %s ## %s ## %.2f ## %.2f ## %.1f ## %s ## %s]",
@@ -117,7 +117,7 @@ Veiculo* lerCsv(char* caminhoArquivo, int* n){
     }
     char linha[5000];
     int total = 0;
-    // aloca o array do tamanho exato
+    // reserva espaço para até 5000 veículos
     Veiculo* veiculos = (Veiculo*) malloc(sizeof(Veiculo) * 5000);
     fgets(linha, 5000, arquivo); // pula o cabeçalho de novo
     while(fgets(linha, 5000, arquivo) != NULL){
@@ -128,61 +128,72 @@ Veiculo* lerCsv(char* caminhoArquivo, int* n){
     *n = total;
     return veiculos;
 }
-char paraMinuscula(char c){ // converte uma letra maiúscula para minúscula
-    if(c >= 'A' && c <= 'Z'){ // verifica se o caractere é uma letra maiúscula
-        return c + 32; // desloca pro correspondente minúsculo na tabela ASCII
+typedef struct {
+    Veiculo array[5];
+    int inicio;
+    int fim;
+    int n;
+} Fila;
+
+void remover(Fila* fila){
+    if(fila->n == 0){
+        printf("Fila vazia\n");
+        return;
     }
-    return c; // se não for maiúscula, retorna sem alterar
+    Veiculo* v = &fila->array[fila->inicio];
+    printf("(R)%s %s\n", v->marca, v->modelo);
+    fila->inicio = (fila->inicio + 1) % 5; // dá a volta no array
+    fila->n--;
 }
-int compararModelo(char* a, char* b){ 
+
+void inserir(Fila* fila, Veiculo* veiculos, int n, int id){
     int i = 0;
-    while(a[i] != '\0' && b[i] != '\0'){ // percorre as duas strings ao mesmo tempo
-        char ca = paraMinuscula(a[i]); // normaliza o caractere de a
-        char cb = paraMinuscula(b[i]); // normaliza o caractere de b
-        if(ca != cb){ // se forem diferentes depois de normalizados, já decide
-            return ca - cb;
-        }
-        i++;
+    while(i < n && veiculos[i].id != id) i++; // encontra o veículo pelo ID
+    if(i == n){
+        printf("ID nao encontrado: %d\n", id);
+        return;
     }
-    return paraMinuscula(a[i]) - paraMinuscula(b[i]); // decide pelo tamanho
+    if(fila->n == 5) remover(fila); // se a fila estiver cheia, remove o mais antigo
+    fila->array[fila->fim] = veiculos[i];
+    fila->fim = (fila->fim + 1) % 5;
+    fila->n++;
 }
-void selectionSort(Veiculo* veiculos, int n){
-    for(int i = 0; i < n - 1; i++){
-        int menor = i;
-        for(int j = i + 1; j < n; j++){
-            if(compararModelo(veiculos[j].modelo, veiculos[menor].modelo) < 0){ // compara ignorando maiúscula/minúscula
-                menor = j;
-            }
-        }
-        if(menor != i){
-            Veiculo temp = veiculos[i];
-            veiculos[i] = veiculos[menor];
-            veiculos[menor] = temp;
-        }
-    }
-}       
+
 int main(){
-    int n; 
+    int n;
     Veiculo* veiculos = lerCsv("/tmp/veiculos.csv", &n);
-    Veiculo* veiculosOrdenados = (Veiculo*) malloc(sizeof(Veiculo) * n);
-    int qtdOrdenados = 0;
+    if(veiculos == NULL) return 1;
+
+    Fila fila;
+    fila.inicio = 0;
+    fila.fim = 0;
+    fila.n = 0;
     int id;
-    while(scanf("%d", &id) && id != -1){
-        for(int i=0; i<n; i++){
-            if(veiculos[i].id == id){ // verifica se o ID do veículo corresponde ao ID escrito
-                veiculosOrdenados[qtdOrdenados] = veiculos[i]; // adiciona o veículo ao array de veículos ordenados
-                qtdOrdenados++;
-                break; // sai do loop assim que o veículo é encontrado
-            }
+    // Os IDs iniciais também respeitam o limite de cinco veículos.
+    while(scanf("%d", &id) == 1 && id != -1){
+        inserir(&fila, veiculos, n, id);
+    }
+
+    int quantidade;
+    if(scanf("%d", &quantidade) != 1){
+        free(veiculos);
+        return 1;
+    }
+    for(int i = 0; i < quantidade; i++){
+        char comando;
+        if(scanf(" %c", &comando) != 1) break; // o espaço ignora a quebra de linha anterior
+        if(comando == 'I'){
+            if(scanf("%d", &id) != 1) break;
+            inserir(&fila, veiculos, n, id);
+        } else if(comando == 'R'){
+            remover(&fila);
         }
     }
-    selectionSort(veiculosOrdenados, qtdOrdenados); // ordena os veículos ordenados pelo modelo
-    for(int i = 0; i < qtdOrdenados; i++){
+    for(int i = 0; i < fila.n; i++){
         char buffer[5000];
-        formatVeiculo(veiculosOrdenados[i], buffer);
+        formatVeiculo(fila.array[(fila.inicio + i) % 5], buffer);
         printf("%s\n", buffer);
     }
-    free(veiculos);
-    free(veiculosOrdenados);
+    free(veiculos); // libera a memória do CSV
     return 0;
 }

@@ -99,8 +99,8 @@ void formatVeiculo(Veiculo v, char* buffer){
     posicao += sprintf(combustiveis + posicao, "%s", v.combustivel[i]); // sem ; nem , aqui
     if(i < v.qtdCombustivel - 1){
         posicao += sprintf(combustiveis + posicao, ","); // vírgula só entre eles
-        }
     }
+}
     char dataRegistro[12];
     formatData(v.dataRegistro, dataRegistro); // formata a data de registro do veículo para uma string
     sprintf(buffer, "[%d ## %s ## %s ## %d ## %s ## [%s] ## %d ## %.1f ## %s ## %s ## %.2f ## %.2f ## %.1f ## %s ## %s]",
@@ -128,61 +128,59 @@ Veiculo* lerCsv(char* caminhoArquivo, int* n){
     *n = total;
     return veiculos;
 }
-char paraMinuscula(char c){ // converte uma letra maiúscula para minúscula
-    if(c >= 'A' && c <= 'Z'){ // verifica se o caractere é uma letra maiúscula
-        return c + 32; // desloca pro correspondente minúsculo na tabela ASCII
+void radixsort(Veiculo* veiculos, int n){
+    if(n <= 0) return;
+    int maiorAno = veiculos[0].ano;
+    for(int i = 1; i < n; i++){ // acha o maior ano pra saber quantas passadas de digito sao necessarias
+        if(veiculos[i].ano > maiorAno){
+            maiorAno = veiculos[i].ano;
+        }
     }
-    return c; // se não for maiúscula, retorna sem alterar
+    Veiculo* saida = (Veiculo*) malloc(sizeof(Veiculo) * n); // reaproveitado em toda passada de digito
+    for(int exp = 1; maiorAno / exp > 0; exp *= 10){ // exp = 1, 10, 100, 1000 ... uma passada por digito
+        int count[10] = {}; // digito vai de 0 a 9
+        for(int i = 0; i < n; i++){
+            int num = (veiculos[i].ano / exp) % 10; // isola o digito que interessa nessa passada
+            count[num]++;
+        }
+        for(int i = 1; i < 10; i++){
+            count[i] += count[i - 1]; // soma acumulada
+        }
+        for(int i = n - 1; i >= 0; i--){ // de tras pra frente pra manter a ordenacao estavel
+            int num = (veiculos[i].ano / exp) % 10;
+            count[num]--;
+            saida[count[num]] = veiculos[i];
+        }
+        for(int i = 0; i < n; i++){
+            veiculos[i] = saida[i]; // copia o resultado dessa passada de volta antes da proxima
+        }
+    }
+    free(saida);
 }
-int compararModelo(char* a, char* b){ 
-    int i = 0;
-    while(a[i] != '\0' && b[i] != '\0'){ // percorre as duas strings ao mesmo tempo
-        char ca = paraMinuscula(a[i]); // normaliza o caractere de a
-        char cb = paraMinuscula(b[i]); // normaliza o caractere de b
-        if(ca != cb){ // se forem diferentes depois de normalizados, já decide
-            return ca - cb;
-        }
-        i++;
-    }
-    return paraMinuscula(a[i]) - paraMinuscula(b[i]); // decide pelo tamanho
-}
-void selectionSort(Veiculo* veiculos, int n){
-    for(int i = 0; i < n - 1; i++){
-        int menor = i;
-        for(int j = i + 1; j < n; j++){
-            if(compararModelo(veiculos[j].modelo, veiculos[menor].modelo) < 0){ // compara ignorando maiúscula/minúscula
-                menor = j;
-            }
-        }
-        if(menor != i){
-            Veiculo temp = veiculos[i];
-            veiculos[i] = veiculos[menor];
-            veiculos[menor] = temp;
-        }
-    }
-}       
 int main(){
     int n; 
     Veiculo* veiculos = lerCsv("/tmp/veiculos.csv", &n);
-    Veiculo* veiculosOrdenados = (Veiculo*) malloc(sizeof(Veiculo) * n);
+    Veiculo* veiculosOrdenados = (Veiculo*) malloc(sizeof(Veiculo) * n); // guarda os encontrados no array
     int qtdOrdenados = 0;
-    int id;
-    while(scanf("%d", &id) && id != -1){
-        for(int i=0; i<n; i++){
-            if(veiculos[i].id == id){ // verifica se o ID do veículo corresponde ao ID escrito
-                veiculosOrdenados[qtdOrdenados] = veiculos[i]; // adiciona o veículo ao array de veículos ordenados
+    int id; 
+    scanf("%d", &id);
+    while(id != -1){
+        for(int i = 0; i < n; i++){
+            if(veiculos[i].id == id){ // verifica se o id bate com o lido
+                veiculosOrdenados[qtdOrdenados] = veiculos[i]; // guarda o carro no array
                 qtdOrdenados++;
-                break; // sai do loop assim que o veículo é encontrado
+                break;
             }
         }
+        scanf("%d", &id);
     }
-    selectionSort(veiculosOrdenados, qtdOrdenados); // ordena os veículos ordenados pelo modelo
+    radixsort(veiculosOrdenados, qtdOrdenados); // ordena os selecionados pelo ano via radix
     for(int i = 0; i < qtdOrdenados; i++){
-        char buffer[5000];
-        formatVeiculo(veiculosOrdenados[i], buffer);
+        char buffer[5000]; 
+        formatVeiculo(veiculosOrdenados[i], buffer); // formata as informações do veículo em uma string e coloca no buffer 
         printf("%s\n", buffer);
     }
-    free(veiculos);
+    free(veiculos); 
     free(veiculosOrdenados);
     return 0;
 }

@@ -99,8 +99,8 @@ void formatVeiculo(Veiculo v, char* buffer){
     posicao += sprintf(combustiveis + posicao, "%s", v.combustivel[i]); // sem ; nem , aqui
     if(i < v.qtdCombustivel - 1){
         posicao += sprintf(combustiveis + posicao, ","); // vírgula só entre eles
-        }
     }
+}
     char dataRegistro[12];
     formatData(v.dataRegistro, dataRegistro); // formata a data de registro do veículo para uma string
     sprintf(buffer, "[%d ## %s ## %s ## %d ## %s ## [%s] ## %d ## %.1f ## %s ## %s ## %.2f ## %.2f ## %.1f ## %s ## %s]",
@@ -117,7 +117,7 @@ Veiculo* lerCsv(char* caminhoArquivo, int* n){
     }
     char linha[5000];
     int total = 0;
-    // aloca o array do tamanho exato
+    // reserva espaço para até 5000 veículos
     Veiculo* veiculos = (Veiculo*) malloc(sizeof(Veiculo) * 5000);
     fgets(linha, 5000, arquivo); // pula o cabeçalho de novo
     while(fgets(linha, 5000, arquivo) != NULL){
@@ -128,61 +128,103 @@ Veiculo* lerCsv(char* caminhoArquivo, int* n){
     *n = total;
     return veiculos;
 }
-char paraMinuscula(char c){ // converte uma letra maiúscula para minúscula
-    if(c >= 'A' && c <= 'Z'){ // verifica se o caractere é uma letra maiúscula
-        return c + 32; // desloca pro correspondente minúsculo na tabela ASCII
+typedef struct Celula { // struct celula que guarda um veículo e o endereço da celula prox 
+    Veiculo* veiculo;
+    struct Celula* prox;
+} Celula;
+typedef struct { // lista que guarda o primeiro e o último elemento e tamanho
+    Celula* primeiro;
+    Celula* ultimo;
+    int n;
+} Lista;
+void inserir(Lista* lista, Veiculo* veiculo, int posicao){
+    if(veiculo == NULL || posicao < 0 || posicao > lista->n) return; // se nao achar a posicao = return
+    Celula* nova = malloc(sizeof(Celula)); // aloca memória para a próxima célula
+    if(nova == NULL) return;
+    nova->veiculo = veiculo;
+    nova->prox = NULL;
+    if(posicao == 0){
+        nova->prox = lista->primeiro;
+        lista->primeiro = nova;
+        if(lista->n == 0) lista->ultimo = nova;
+    } else if(posicao == lista->n){
+        lista->ultimo->prox = nova;
+        lista->ultimo = nova;
+    } else {
+        Celula* anterior = lista->primeiro;
+        for(int i = 0; i < posicao - 1; i++) anterior = anterior->prox;
+        nova->prox = anterior->prox;
+        anterior->prox = nova;
     }
-    return c; // se não for maiúscula, retorna sem alterar
+    lista->n++; // incrementa o tamanho da lista dps de inserir
 }
-int compararModelo(char* a, char* b){ 
-    int i = 0;
-    while(a[i] != '\0' && b[i] != '\0'){ // percorre as duas strings ao mesmo tempo
-        char ca = paraMinuscula(a[i]); // normaliza o caractere de a
-        char cb = paraMinuscula(b[i]); // normaliza o caractere de b
-        if(ca != cb){ // se forem diferentes depois de normalizados, já decide
-            return ca - cb;
-        }
-        i++;
+Veiculo* remover(Lista* lista, int posicao){
+    if(posicao < 0 || posicao >= lista->n) return NULL;
+    Celula* retirada;
+    if(posicao == 0){
+        retirada = lista->primeiro; // guarda a célula que será removida
+        lista->primeiro = retirada->prox; // atualiza o primeiro elemento da lista
+        if(lista->n == 1) lista->ultimo = NULL; // se sair o único elemento = lista null 
+    } else {
+        Celula* anterior = lista->primeiro; // percorre a lista até a célula anterior à que será removida
+        for(int i = 0; i < posicao - 1; i++) anterior = anterior->prox; // percorre até a célula anterior à que será removida
+        retirada = anterior->prox; // guarda a célula que será removida
+        anterior->prox = retirada->prox; // atualiza o ponteiro da célula anterior para pular a célula removida
+        if(retirada == lista->ultimo) lista->ultimo = anterior; // atualiza o último elemento caso a celula removida seja a última
     }
-    return paraMinuscula(a[i]) - paraMinuscula(b[i]); // decide pelo tamanho
+    Veiculo* veiculo = retirada->veiculo;
+    free(retirada); // libera a célula
+    lista->n--;
+    return veiculo;
 }
-void selectionSort(Veiculo* veiculos, int n){
-    for(int i = 0; i < n - 1; i++){
-        int menor = i;
-        for(int j = i + 1; j < n; j++){
-            if(compararModelo(veiculos[j].modelo, veiculos[menor].modelo) < 0){ // compara ignorando maiúscula/minúscula
-                menor = j;
-            }
-        }
-        if(menor != i){
-            Veiculo temp = veiculos[i];
-            veiculos[i] = veiculos[menor];
-            veiculos[menor] = temp;
-        }
+Veiculo* buscarPorId(Veiculo* veiculos, int n, int id){
+    for(int i = 0; i < n; i++){
+        if(veiculos[i].id == id) return &veiculos[i]; // retorna o ponteiro para o veículo 
     }
-}       
+    return NULL;
+}
 int main(){
-    int n; 
+    int n;
     Veiculo* veiculos = lerCsv("/tmp/veiculos.csv", &n);
-    Veiculo* veiculosOrdenados = (Veiculo*) malloc(sizeof(Veiculo) * n);
-    int qtdOrdenados = 0;
+    if(veiculos == NULL) return 1;
+    Lista lista = {NULL, NULL, 0}; // começa sem nenhuma célula
     int id;
-    while(scanf("%d", &id) && id != -1){
-        for(int i=0; i<n; i++){
-            if(veiculos[i].id == id){ // verifica se o ID do veículo corresponde ao ID escrito
-                veiculosOrdenados[qtdOrdenados] = veiculos[i]; // adiciona o veículo ao array de veículos ordenados
-                qtdOrdenados++;
-                break; // sai do loop assim que o veículo é encontrado
-            }
+    while(scanf("%d", &id) == 1 && id != -1){
+        inserir(&lista, buscarPorId(veiculos, n, id), lista.n);
+    }
+    int quantidade = 0;
+    scanf("%d", &quantidade);
+    for(int i = 0; i < quantidade; i++){
+        char comando[3];
+        int posicao;
+        Veiculo* removido = NULL;
+        scanf("%2s", comando);
+        // O segundo caractere diz onde mexer: início, fim ou posição.
+        if(comando[0] == 'I'){
+            posicao = lista.n;
+            if(comando[1] == 'I') posicao = 0;
+            else if(comando[1] == '*') scanf("%d", &posicao);
+            scanf("%d", &id);
+            inserir(&lista, buscarPorId(veiculos, n, id), posicao);
+        } else if(comando[0] == 'R'){
+            posicao = lista.n - 1;
+            if(comando[1] == 'I') posicao = 0;
+            else if(comando[1] == '*') scanf("%d", &posicao);
+            removido = remover(&lista, posicao);
+        }
+        if(removido != NULL){
+            printf("(R)%s %s\n", removido->marca, removido->modelo);
         }
     }
-    selectionSort(veiculosOrdenados, qtdOrdenados); // ordena os veículos ordenados pelo modelo
-    for(int i = 0; i < qtdOrdenados; i++){
-        char buffer[5000];
-        formatVeiculo(veiculosOrdenados[i], buffer);
+    Celula* atual = lista.primeiro;
+    while(atual != NULL){
+        char buffer[60000];
+        formatVeiculo(*atual->veiculo, buffer);
         printf("%s\n", buffer);
+        Celula* proxima = atual->prox;
+        free(atual);
+        atual = proxima;
     }
-    free(veiculos);
-    free(veiculosOrdenados);
+    free(veiculos); // os veículos só são liberados depois das células
     return 0;
 }
